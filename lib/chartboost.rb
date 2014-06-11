@@ -3,33 +3,14 @@ require "rack-timeout"
 require "redis"
 require "logger"
 require "oj"
-
-class Repository
-  def initialize(redis)
-    @redis = redis
-  end
-
-  def save(id, params)
-    @redis.set(key(id), Oj.dump(params))
-  end
-
-  def fetch(id)
-    @redis.get(key(id))
-  end
-
-  protected
-
-  def key(id)
-    "charboost:#{id}"
-  end
-end
-
-use Rack::Timeout
+require "repository"
 
 enable :logging
 
 configure :development, :production do
-  ENV["REDISTOGO_URL"] = 'redis://localhost:6379' unless ENV["REDISTOGO_URL"]
+  use Rack::Timeout
+
+  ENV["REDISTOGO_URL"] = "redis://localhost:6379" unless ENV["REDISTOGO_URL"]
   redis = Redis.new(url: ENV["REDISTOGO_URL"], driver: :hiredis, logger: Logger.new($stdout))
   set :repository, Repository.new(redis)
 end
@@ -47,4 +28,13 @@ get "/fetch" do
   else
     404
   end
+end
+
+get "/all" do
+  logs = settings.repository.all
+  [200, {"Content-Type" => "application/json"}, ["[#{logs.join(',')}]"]]
+end
+
+delete "/all" do
+  settings.repository.reset
 end
