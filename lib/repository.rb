@@ -15,7 +15,7 @@ class Repository
   end
 
   def all
-    @redis.sort(key("all"), get: "chartboost:*")
+    @redis.sort(key("all"), by: :nosort, get: "chartboost:*")
   end
 
   def reset
