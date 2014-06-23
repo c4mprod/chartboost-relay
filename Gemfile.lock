@@ -3,9 +3,9 @@ GEM
   specs:
     daemon_controller (1.2.0)
     hiredis (0.5.2)
-    minitest (5.3.4)
-    oj (2.9.5)
-    passenger (4.0.44)
+    minitest (5.3.5)
+    oj (2.9.6)
+    passenger (4.0.45)
       daemon_controller (>= 1.2.0)
       rack
       rake (>= 0.8.1)

@@ -5,8 +5,16 @@ require "chartboost"
 describe "chartboost" do
   include Rack::Test::Methods
 
+  let(:redis_url) { ENV["REDISTOGO_URL"] || "redis://localhost:6379" }
+  let(:redis) { Redis.new(url: redis_url, driver: :hiredis) }
+  let(:repo) { Repository.new(redis) }
+
+  before { repo.reset }
+  after { repo.reset }
+
   def app
-    Sinatra::Application
+    app = Sinatra::Application
+    app.set(:repository, repo)
   end
 
   describe "/notify" do
@@ -16,91 +24,87 @@ describe "chartboost" do
     end
 
     describe "saving" do
-      before do
-        @repo = Minitest::Mock.new
-        app.set(:repository, @repo)
-      end
-
-      it "doesn't save the params" do
+      it "saves the params (no id)" do
         get '/notify?plop=plip'
-        assert @repo.verify
+        assert !repo.all.empty?
       end
 
       it "saves the params ('ifa' as id)" do
-        @repo.expect :save, nil, ["42", {"ifa" => "42", "plop" => "plip"}]
         get '/notify?plop=plip&ifa=42'
-        assert @repo.verify
+        assert !repo.fetch("ifa" => 42).empty?
       end
 
       it "saves the params ('uuid' as id)" do
-        @repo.expect :save, nil, ["42", {"uuid" => "42", "plop" => "plip"}]
         get '/notify?plop=plip&uuid=42'
-        assert @repo.verify
+        assert !repo.fetch("uuid" => 42).empty?
       end
     end
   end
 
   describe "/fetch" do
+
     it "responds not found with no id" do
       get '/fetch'
-      assert last_response.not_found?
+      last_response.body.must_equal "[]"
     end
 
     describe "fetching" do
-      before do
-        @repo = Minitest::Mock.new
-        app.set(:repository, @repo)
+
+      describe "ifa" do
+        it "responds not found with an unknown ifa" do
+          get '/fetch?ifa=42'
+          assert last_response.ok?
+          last_response.body.must_equal "[]"
+        end
+
+        it "responds the JSON with a matching ifa" do
+          get '/notify?plop=plip&ifa=42'
+          get '/fetch?ifa=42'
+          assert last_response.ok?
+          last_response.body.must_equal '[{"plop":"plip","ifa":"42"}]'
+        end
       end
 
-      it "responds not found with an unknown id" do
-        @repo.expect :fetch, nil, ["42"]
-        get '/fetch?id=42'
-        assert last_response.not_found?
-        assert @repo.verify
-      end
+      describe "uuid" do
+        it "responds not found with an unknown uuid" do
+          get '/fetch?uuid=42'
+          assert last_response.ok?
+          last_response.body.must_equal "[]"
+        end
 
-      it "responds the JSON with a matching id" do
-        json = '{"workgin":true}'
-        @repo.expect :fetch, json, ["42"]
-        get '/fetch?id=42'
-        assert last_response.ok?
-        last_response.body.must_equal json
-        assert @repo.verify
+        it "responds the JSON with a matching ifa" do
+          get '/notify?plop=plip&uuid=42'
+          get '/fetch?uuid=42'
+          assert last_response.ok?
+          last_response.body.must_equal '[{"plop":"plip","uuid":"42"}]'
+        end
       end
     end
   end
 
   describe "GET /all" do
-    before do
-      @repo = Minitest::Mock.new
-      app.set(:repository, @repo)
-    end
 
     it "responds ok and an empty array" do
-      @repo.expect :all, []
       get '/all'
       assert last_response.ok?
       assert last_response.body = '[]'
     end
 
     it "responds all logs" do
-      @repo.expect :all, ['{"workgin":true}', '{"workgin":false}']
+      get '/notify?plop=plip&uuid=42'
+      get '/notify?plop=plip&ifa=42'
       get '/all'
       assert last_response.ok?
-      assert last_response.body = '[{"workgin":true},{"workgin":false}]'
+      assert last_response.body = '[{"plop":"plip","uuid":"42"},{"plop":"plip","ifa":"42"}]'
     end
   end
 
   describe "DELETE /all" do
-    before do
-      @repo = Minitest::Mock.new
-      app.set(:repository, @repo)
-    end
 
     it "reset the repository" do
-      @repo.expect :reset, []
+      get '/notify?plop=plip&uuid=42'
       delete '/all'
-      assert last_response.ok?
+      assert repo.all.empty?
     end
   end
 end

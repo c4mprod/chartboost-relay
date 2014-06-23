@@ -16,18 +16,13 @@ configure :development, :production do
 end
 
 get "/notify" do
-  id = params["ifa"] || params["uuid"]
-  settings.repository.save(id, params) if id
+  settings.repository.save(params)
   200
 end
 
 get "/fetch" do
-  log = settings.repository.fetch(params[:id]) if params[:id]
-  if log
-    [200, {"Content-Type" => "application/json"}, [log]]
-  else
-    404
-  end
+  logs = settings.repository.fetch(params)
+  [200, {"Content-Type" => "application/json"}, ["[#{logs.join(',')}]"]]
 end
 
 get "/all" do
